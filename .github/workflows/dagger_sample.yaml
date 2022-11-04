@@ -1,0 +1,55 @@
+name: dagger-sample
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_ACCOUNT: ${{ secrets.AWS_ACCOUNT }}
+  AWS_DEFAULT_REGION: ap-northeast-1
+  AWS_ROLE_ARN: ${{ secrets.DAGGER_DEMO_ECR_ACCESS_ARN }}
+
+jobs:
+  dagger:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials from IAM Role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Set ECR Login Password
+        run: echo "DOCKER_LOGIN_PASSWORD=`aws ecr get-login-password --region ${{ env.AWS_DEFAULT_REGION }}`" >> $GITHUB_ENV
+
+      - name: Dagger Initial Setup
+        uses: dagger/dagger-for-github@v3
+        with:
+          version: 0.2
+          workdir: ./ex05_github_actions
+          cmds: |
+            project init
+            project update
+
+      - name: Gradle Build
+        uses: dagger/dagger-for-github@v3
+        with:
+          version: 0.2
+          workdir: ./ex05_github_actions
+          cmds: |
+            do gradle_build
+
+      - name: Image Push
+        uses: dagger/dagger-for-github@v3
+        with:
+          version: 0.2
+          workdir: ./ex05_github_actions
+          cmds: |
+            do image_push
